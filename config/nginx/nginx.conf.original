@@ -1,0 +1,231 @@
+# Main nginx configuration
+events {
+    worker_connections 1024;
+}
+
+http {
+    # Basic settings
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+    server_tokens off;
+
+    # MIME types
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    # Logging
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types
+        text/plain
+        text/css
+        text/xml
+        text/javascript
+        application/json
+        application/javascript
+        application/xml+rss
+        application/atom+xml
+        image/svg+xml;
+
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=login:10m rate=5r/m;
+    limit_req_zone $binary_remote_addr zone=api:10m rate=30r/m;
+
+    # SSL settings (will be used when SSL is configured)
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # Security headers
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Upstream definitions 
+    upstream keycloak_backend {
+        server keycloak:8443;
+    }
+
+    upstream sendgrid_backend {
+        server sendgrid-app:3000;
+    }
+
+    # Redirect HTTP to HTTPS - separate blocks untuk setiap domain
+    server {
+        listen 80;
+        server_name sso.aeno.tech;
+        
+        # Allow Let's Encrypt challenge
+        location /.well-known/acme-challenge/ {
+            root /var/www/certbot/www;
+        }
+
+        # Redirect to HTTPS
+        location / {
+            return 301 https://sso.aeno.tech$request_uri;
+        }
+    }
+
+    server {
+        listen 80;
+        server_name mail.aeno.tech;
+        
+        # Allow Let's Encrypt challenge
+        location /.well-known/acme-challenge/ {
+            root /var/www/certbot/www;
+        }
+
+        # Redirect to HTTPS
+        location / {
+            return 301 https://mail.aeno.tech$request_uri;
+        }
+    }
+
+    # Keycloak - sso.aeno.tech
+    server {
+        listen 443 ssl http2;
+        server_name sso.aeno.tech;
+
+        # SSL configuration (dynamic path - dev or prod)
+        ssl_certificate /etc/nginx/ssl/sso.aeno.tech.crt;
+        ssl_certificate_key /etc/nginx/ssl/sso.aeno.tech.key;
+
+        # Security headers specific to Keycloak
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        
+        # Rate limiting for login endpoints
+        location ~ ^/(realms/.*/protocol/openid-connect|auth/realms/.*/protocol/openid-connect) {
+            limit_req zone=login burst=10 nodelay;
+            proxy_pass https://keycloak_backend;
+            proxy_ssl_verify off;
+            proxy_ssl_server_name off;
+            proxy_ssl_protocols TLSv1.2 TLSv1.3;
+            proxy_ssl_ciphers HIGH:!aNULL:!MD5;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header X-Forwarded-Port 443;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Ssl on;
+            
+            # Keycloak specific headers
+            proxy_buffer_size 128k;
+            proxy_buffers 4 256k;
+            proxy_busy_buffers_size 256k;
+        }
+
+        # Main Keycloak proxy
+        location / {
+            proxy_pass https://keycloak_backend;
+            proxy_ssl_verify off;
+            proxy_ssl_server_name off;
+            proxy_ssl_protocols TLSv1.2 TLSv1.3;
+            proxy_ssl_ciphers HIGH:!aNULL:!MD5;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header X-Forwarded-Port 443;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Ssl on;
+            
+            # Keycloak specific settings
+            proxy_buffer_size 128k;
+            proxy_buffers 4 256k;
+            proxy_busy_buffers_size 256k;
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+        }
+    }
+
+    # SendGrid Mail - mail.aeno.tech
+    server {
+        listen 443 ssl http2;
+        server_name mail.aeno.tech;
+
+        # SSL configuration (dynamic path - dev or prod)
+        ssl_certificate /etc/nginx/ssl/mail.aeno.tech.crt;
+        ssl_certificate_key /etc/nginx/ssl/mail.aeno.tech.key;
+
+        # Security headers
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        
+        # Rate limiting for API endpoints
+        location /api/ {
+            limit_req zone=api burst=50 nodelay;
+            proxy_pass http://sendgrid_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header X-Forwarded-Port 443;
+        }
+
+        # SendGrid webhook endpoint (no rate limiting for webhooks)
+        location /inbound {
+            proxy_pass http://sendgrid_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header X-Forwarded-Port 443;
+            
+            # Allow larger uploads for email attachments
+            client_max_body_size 50M;
+        }
+
+        # Auth endpoints with rate limiting
+        location /auth/ {
+            limit_req zone=login burst=5 nodelay;
+            proxy_pass http://sendgrid_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header X-Forwarded-Port 443;
+        }
+
+        # Main SendGrid app proxy
+        location / {
+            proxy_pass http://sendgrid_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header X-Forwarded-Port 443;
+            
+            # WebSocket support if needed
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+    }
+
+    # Default server block (catch-all)
+    server {
+        listen 80 default_server;
+        listen 443 ssl default_server;
+        server_name _;
+        
+        # Placeholder SSL (will be replaced with real certificates)
+        ssl_certificate /etc/nginx/ssl/default.crt;
+        ssl_certificate_key /etc/nginx/ssl/default.key;
+        
+        return 444; # Close connection without response
+    }
+}

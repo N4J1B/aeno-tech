@@ -26,16 +26,35 @@ Complete Docker deployment untuk **Keycloak** (sso.aeno.tech) + **SendGrid** (ma
 
 # 🚀 Quick Start
 
+## 🌐 **Any Domain Support** 
+**This stack works with ANY domain you own!** `aeno.tech` is just an example.
+
+### Step 0: Configure Your Domain (30 seconds)
+```bash
+# 1. Copy environment file
+cp .env.example .env
+
+# 2. Edit with your domain
+nano .env
+
+# Change these lines:
+BASE_DOMAIN=yourdomain.com        # Your domain
+ADMIN_EMAIL=admin@yourdomain.com  # Your email
+```
+
+**DNS Required:** Point these to your server IP:
+- `sso.yourdomain.com` → `YOUR_SERVER_IP`  
+- `mail.yourdomain.com` → `YOUR_SERVER_IP`
+
+---
+
 ## Option 1: Production Deploy (Recommended - 5 minutes)
 
 ```bash
-# 1. Setup dengan wizard
+# 1. Setup dengan wizard (will configure domain automatically)
 ./manage.sh setup
 
-# 2. Edit konfigurasi
-nano .env
-
-# 3. Start services
+# 2. Start services
 ./manage.sh start
 
 # 4. Setup production SSL
@@ -89,7 +108,7 @@ Pilih metode deployment sesuai kebutuhan Anda:
 ./manage.sh start
 
 # Images used:
-# - n4j1b/keycloak-custom:latest
+# - n4j1b/keycloak:latest
 # - n4j1b/sendgrid-inbound:latest
 ```
 
@@ -238,6 +257,9 @@ Verify DNS:
 
 ### SSL & Domain
 ```bash
+./manage.sh domain configure   # Configure domain from .env variables
+./manage.sh domain check       # Check DNS records
+./manage.sh domain test        # Test endpoints
 ./manage.sh dev-mode           # Development mode (self-signed SSL)
 ./manage.sh prod-mode          # Production mode (Let's Encrypt)
 ./manage.sh ssl dev            # Generate self-signed certificates
@@ -277,14 +299,20 @@ nano .env
 
 **Required Variables:**
 ```bash
+# Domain Configuration (🌐 New: Dynamic Domain Support)
+BASE_DOMAIN=yourdomain.com           # Your base domain
+SSO_SUBDOMAIN=sso                    # SSO subdomain (optional, default: sso)
+MAIL_SUBDOMAIN=mail                  # Mail subdomain (optional, default: mail)  
+ADMIN_EMAIL=admin@yourdomain.com     # Admin email for SSL
+
 # Database
 POSTGRES_PASSWORD="your_secure_password"
 KEYCLOAK_ADMIN_PASSWORD="your_admin_password"
 SENDGRID_WEB_PASSWORD="your_web_password"
 
-# Domain (for production)
-KEYCLOAK_HOSTNAME=https://sso.aeno.tech
-LETSENCRYPT_EMAIL=admin@aeno.tech
+# Legacy (will be auto-configured from BASE_DOMAIN)
+KEYCLOAK_HOSTNAME=https://sso.yourdomain.com
+LETSENCRYPT_EMAIL=admin@yourdomain.com
 ```
 
 **Optional Variables:**
@@ -359,29 +387,45 @@ config/nginx/ssl/
 ## 🌐 DNS Setup
 
 ### DNS Records Required
-Point these domains to your server IP:
+Point these domains to your server IP (replace with your actual domain):
 ```
-sso.aeno.tech  → YOUR_SERVER_IP
-mail.aeno.tech → YOUR_SERVER_IP
+sso.yourdomain.com   → YOUR_SERVER_IP
+mail.yourdomain.com  → YOUR_SERVER_IP
+```
+
+**Example for different domains:**
+```bash
+# For BASE_DOMAIN=example.com
+sso.example.com   → YOUR_SERVER_IP  
+mail.example.com  → YOUR_SERVER_IP
+
+# For BASE_DOMAIN=mycompany.org  
+sso.mycompany.org  → YOUR_SERVER_IP
+mail.mycompany.org → YOUR_SERVER_IP
 ```
 
 ### Verification
 ```bash
-# Check DNS resolution
+# Check DNS resolution for your domain
 ./manage.sh domain check
 
-# Test endpoints
+# Test endpoints for your domain
 ./manage.sh domain test
 
-# Manual check
-dig +short A sso.aeno.tech
-dig +short A mail.aeno.tech
+# Manual check (replace with your domain)
+dig +short A sso.yourdomain.com
+dig +short A mail.yourdomain.com
 ```
 
 ### Local Testing (Development)
-Add to `/etc/hosts` for local testing:
-```
-127.0.0.1 sso.aeno.tech mail.aeno.tech
+Add to `/etc/hosts` for local testing (replace with your domain):
+```bash
+# For your custom domain
+127.0.0.1 sso.yourdomain.com mail.yourdomain.com
+
+# Example for different domains
+127.0.0.1 sso.example.com mail.example.com
+127.0.0.1 sso.mycompany.org mail.mycompany.org
 ```
 
 ---
@@ -621,7 +665,42 @@ cd sendgrid-inbound && git pull && cd ..
 
 ---
 
-## 📞 Getting Help
+## � Migration from aeno.tech
+
+If you have existing deployment with hardcoded `aeno.tech` domains:
+
+### Easy Migration
+```bash
+# 1. Update your .env file
+cp .env.example .env.new
+nano .env.new  # Set your BASE_DOMAIN
+
+# 2. Backup current config
+cp .env .env.backup
+cp config/nginx/nginx.conf config/nginx/nginx.conf.backup
+cp docker-compose.yml docker-compose.yml.backup
+
+# 3. Replace with new config
+mv .env.new .env
+./manage.sh domain configure
+
+# 4. Update DNS and restart
+./manage.sh restart
+```
+
+### Manual Migration
+```bash
+# Replace in all config files
+sed -i 's/aeno\.tech/yourdomain.com/g' .env
+sed -i 's/sso\.aeno\.tech/sso.yourdomain.com/g' config/nginx/nginx.conf
+sed -i 's/mail\.aeno\.tech/mail.yourdomain.com/g' config/nginx/nginx.conf
+sed -i 's/sso\.aeno\.tech/sso.yourdomain.com/g' docker-compose.yml
+sed -i 's/mail\.aeno\.tech/mail.yourdomain.com/g' docker-compose.yml
+```
+
+---
+
+## �📞 Getting Help
 
 ### Built-in Help
 ```bash

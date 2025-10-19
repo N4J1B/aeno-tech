@@ -1,0 +1,100 @@
+services:
+  # PostgreSQL Database - Shared for both Keycloak and SendGrid services
+  postgres:
+    image: postgres:16.2
+    container_name: shared_postgres
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shared_network
+
+  # Keycloak Service
+  keycloak:
+    image: mykeycloak:latest
+    container_name: keycloak_app
+    command: start --optimized
+    restart: unless-stopped
+    environment:
+      TAILCLOAKIFY_SHOW_SOCIAL_PROVIDERS_ON_REGISTER: "TRUE"
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB_URL: jdbc:postgresql://postgres/${POSTGRES_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/certs/sso.aeno.tech.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/certs/sso.aeno.tech.key
+    volumes:
+      - ./config/nginx/ssl:/opt/keycloak/conf/certs
+    # Ports untuk HTTPS Keycloak
+    # ports:
+    #   - "8443:8443"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - shared_network
+
+  # SendGrid Email Parser Application
+  sendgrid-app:
+    image: sendgrid-inbound:latest
+    container_name: sendgrid_app
+    restart: unless-stopped
+    environment:
+      ENV WEB_USERNAME: ${SENDGRID_WEB_USERNAME}
+      WEB_PASSWORD: ${SENDGRID_WEB_PASSWORD}
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${SENDGRID_DB}
+    # Ports tidak di-expose langsung, hanya melalui nginx
+    # ports:
+    #   - "3000:3000"
+    volumes:
+      - ./sendgrid-inbound/attachments:/app/attachments
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - shared_network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Nginx configuration - single unified config
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # SSL certificates (dev/prod separated by folder)
+      - ./config/nginx/ssl:/etc/nginx/ssl:ro
+      # Let's Encrypt challenge directory (for production)
+      - ./config/nginx/certbot:/var/www/certbot
+    depends_on:
+      - keycloak
+      - sendgrid-app
+    networks:
+      - shared_network
+    environment:
+      # Optional: Set timezone
+      - TZ=Asia/Jakarta
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  shared_network:
+    driver: bridge

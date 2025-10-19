@@ -72,6 +72,7 @@ show_help() {
     echo "  db status           Check database connection"
     echo ""
     echo "🌐 Domain & SSL Commands:"
+    echo "  domain configure    Configure domain dynamically dari .env"
     echo "  domain check        Check DNS records dan connectivity"
     echo "  domain test         Test semua endpoints dan performance"
     echo "  ssl dev             Generate self-signed SSL (development)"
@@ -154,6 +155,62 @@ check_env() {
         printf '  - %s\n' "${missing_vars[@]}"
         exit 1
     fi
+}
+
+# ===============================
+# DOMAIN CONFIGURATION
+# ===============================
+
+# Domain Configuration - Simple Version
+configure_domain() {
+    info "Configuring domain..."
+    
+    # Load dari .env
+    if [[ -f .env ]]; then
+        source .env
+    else
+        error "Please create .env file first: cp .env.example .env"
+        exit 1
+    fi
+    
+    # Set defaults jika kosong
+    BASE_DOMAIN=${BASE_DOMAIN:-aeno.tech}
+    SSO_SUBDOMAIN=${SSO_SUBDOMAIN:-sso}
+    MAIL_SUBDOMAIN=${MAIL_SUBDOMAIN:-mail}
+    
+    info "Configuring for domain: $BASE_DOMAIN"
+    info "SSO will be: ${SSO_SUBDOMAIN}.${BASE_DOMAIN}"
+    info "Mail will be: ${MAIL_SUBDOMAIN}.${BASE_DOMAIN}"
+    
+    # Create backup of original files if they don't exist
+    if [[ ! -f config/nginx/nginx.conf.original ]]; then
+        cp config/nginx/nginx.conf config/nginx/nginx.conf.original
+    fi
+    if [[ ! -f docker-compose.yml.original ]]; then
+        cp docker-compose.yml docker-compose.yml.original
+    fi
+    
+    # Replace di nginx.conf
+    if [[ -f config/nginx/nginx.conf ]]; then
+        sed -i "s/sso\.aeno\.tech/${SSO_SUBDOMAIN}.${BASE_DOMAIN}/g" config/nginx/nginx.conf
+        sed -i "s/mail\.aeno\.tech/${MAIL_SUBDOMAIN}.${BASE_DOMAIN}/g" config/nginx/nginx.conf
+        success "Nginx configuration updated"
+    fi
+    
+    # Replace di docker-compose.yml  
+    if [[ -f docker-compose.yml ]]; then
+        sed -i "s/sso\.aeno\.tech/${SSO_SUBDOMAIN}.${BASE_DOMAIN}/g" docker-compose.yml
+        sed -i "s/mail\.aeno\.tech/${MAIL_SUBDOMAIN}.${BASE_DOMAIN}/g" docker-compose.yml
+        success "Docker Compose configuration updated"
+    fi
+    
+    success "Domain configured successfully!"
+    echo "   - SSO: https://${SSO_SUBDOMAIN}.${BASE_DOMAIN}"
+    echo "   - Mail: https://${MAIL_SUBDOMAIN}.${BASE_DOMAIN}"
+    echo ""
+    warning "Make sure your DNS points to this server:"
+    echo "   ${SSO_SUBDOMAIN}.${BASE_DOMAIN} → YOUR_SERVER_IP"
+    echo "   ${MAIL_SUBDOMAIN}.${BASE_DOMAIN} → YOUR_SERVER_IP"
 }
 
 # ===============================
@@ -651,22 +708,34 @@ switch_to_prod_nginx() {
 # MAINTENANCE COMMANDS  
 # ===============================
 
-initial_setup() {
-    info "Running initial setup..."
+setup() {
+    echo "🎯 Aeno.tech Stack Setup"
+    echo "========================"
     
-    # Copy environment file
-    if [ ! -f "$ENV_FILE" ]; then
-        if [ -f "./env.example" ]; then
-            cp ./env.example "$ENV_FILE"
-            warning "Environment file copied. Please edit $ENV_FILE dengan konfigurasi Anda!"
-            info "Edit dengan: nano $ENV_FILE"
+    # Step 1: Create .env if not exists
+    if [[ ! -f .env ]]; then
+        if [[ -f .env.example ]]; then
+            cp .env.example .env
+            success ".env file created from template"
+            echo ""
+            warning "📝 Please edit .env file with your domain configuration:"
+            echo "   nano .env"
+            echo ""
+            echo "🌐 Change these variables for your domain:"
+            echo "   BASE_DOMAIN=yourdomain.com"
+            echo "   ADMIN_EMAIL=admin@yourdomain.com"
+            echo ""
+            read -p "Press Enter after editing .env file..."
         else
-            error "File env.example tidak ditemukan"
+            error ".env.example file not found"
             exit 1
         fi
     else
-        info "Environment file sudah ada"
+        info "Environment file already exists"
     fi
+    
+    # Step 2: Configure domain
+    configure_domain
     
     # Generate development SSL
     setup_dev_ssl
@@ -1285,9 +1354,10 @@ main() {
             ;;
         "domain")
             case "$command" in
+                "configure") configure_domain ;;
                 "check") check_domain ;;
                 "test") test_domain ;;
-                *) error "Unknown domain command. Use: check, test" ;;
+                *) error "Unknown domain command. Use: configure, check, test" ;;
             esac
             ;;
         "ssl")
@@ -1299,7 +1369,7 @@ main() {
             esac
             ;;
         "setup")
-            initial_setup
+            setup
             ;;
         "clean")
             clean_system
