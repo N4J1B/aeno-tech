@@ -15,8 +15,8 @@ KEYCLOAK_REPO="https://github.com/N4J1B/keycloak.git"
 SENDGRID_REPO="https://github.com/N4J1B/sendgrid-inbound.git"
 
 # DockerHub Images
-KEYCLOAK_IMAGE="n4j1b/keycloak-custom:latest"
-SENDGRID_IMAGE="n4j1b/sendgrid-inbound:latest"
+KEYCLOAK_IMAGE="aenoen/mykeycloak:latest"
+SENDGRID_IMAGE="aenoen/sendgrid-inbound:latest"
 
 # Colors untuk output
 RED='\033[0;31m'
@@ -639,37 +639,42 @@ setup_prod_ssl() {
     # Start nginx dengan HTTP config untuk challenge
     docker compose -f "$COMPOSE_FILE" up -d nginx
     
-    local subdomains=("sso" "mail")
     local email="${LETSENCRYPT_EMAIL:-admin@${DOMAIN}}"
+    local wildcard_domain="*.${DOMAIN}"
     
-    for subdomain in "${subdomains[@]}"; do
-        local full_domain="${subdomain}.${DOMAIN}"
-        info "Getting certificate for $full_domain..."
-        
-        docker run --rm --name certbot \
-            -v "$(pwd)/config/nginx/certbot/conf:/etc/letsencrypt" \
-            -v "$(pwd)/config/nginx/certbot/www:/var/www/certbot" \
-            certbot/certbot \
-            certonly \
-            --webroot \
-            --webroot-path=/var/www/certbot \
-            --email "$email" \
-            --agree-tos \
-            --no-eff-email \
-            -d "$full_domain" \
-            --non-interactive || warning "Failed to get certificate for $full_domain"
-        
-        # Copy certificates to prod folder
-        if [ -f "config/nginx/certbot/conf/live/$full_domain/fullchain.pem" ]; then
-            cp "config/nginx/certbot/conf/live/$full_domain/fullchain.pem" "config/nginx/ssl/prod/$full_domain.crt"
-            cp "config/nginx/certbot/conf/live/$full_domain/privkey.pem" "config/nginx/ssl/prod/$full_domain.key"
-            success "Certificate obtained for $full_domain"
-        fi
-    done
+    info "Getting wildcard certificate for $DOMAIN and $wildcard_domain..."
+    
+    # Request certificate for both root domain and wildcard subdomain
+    docker run --rm --name certbot \
+        -v "$(pwd)/config/nginx/certbot/conf:/etc/letsencrypt" \
+        -v "$(pwd)/config/nginx/certbot/www:/var/www/certbot" \
+        certbot/certbot \
+        certonly \
+        --webroot \
+        --webroot-path=/var/www/certbot \
+        --email "$email" \
+        --agree-tos \
+        --no-eff-email \
+        -d "$DOMAIN" \
+        -d "$wildcard_domain" \
+        --non-interactive || warning "Failed to get wildcard certificate for $DOMAIN"
+    
+    # Copy certificates for each subdomain from the wildcard cert
+    local subdomains=("sso" "mail")
+    
+    if [ -f "config/nginx/certbot/conf/live/$DOMAIN/fullchain.pem" ]; then
+        # Simple approach: Save as wildcard.crt - one file for all domains
+        cp "config/nginx/certbot/conf/live/$DOMAIN/fullchain.pem" "config/nginx/ssl/prod/wildcard.crt"
+        cp "config/nginx/certbot/conf/live/$DOMAIN/privkey.pem" "config/nginx/ssl/prod/wildcard.key"
+        success "Wildcard certificate saved as wildcard.crt (covers $DOMAIN and *.${DOMAIN})"
+    else
+        error "Wildcard certificate request failed...."
+    fi
     
     # Link production certificates
     switch_to_prod_mode
-    success "Production SSL setup completed"
+    success "Production SSL wildcard certificate setup completed"
+    info "✅ Certificate covers: $DOMAIN and *.${DOMAIN} (including sso.${DOMAIN}, mail.${DOMAIN})"
 }
 
 renew_ssl() {
@@ -680,13 +685,21 @@ renew_ssl() {
         -v "$(pwd)/config/nginx/certbot/www:/var/www/certbot" \
         certbot/certbot renew --quiet
     
-    # Copy renewed certificates
-    for domain in "sso.${DOMAIN}" "mail.${DOMAIN}"; do
-        if [ -f "config/nginx/certbot/conf/live/$domain/fullchain.pem" ]; then
-            cp "config/nginx/certbot/conf/live/$domain/fullchain.pem" "config/nginx/ssl/$domain.crt"
-            cp "config/nginx/certbot/conf/live/$domain/privkey.pem" "config/nginx/ssl/$domain.key"
-        fi
-    done
+    # Simple approach: Update single wildcard certificate file
+    if [ -f "config/nginx/certbot/conf/live/$DOMAIN/fullchain.pem" ]; then
+        cp "config/nginx/certbot/conf/live/$DOMAIN/fullchain.pem" "config/nginx/ssl/prod/wildcard.crt"
+        cp "config/nginx/certbot/conf/live/$DOMAIN/privkey.pem" "config/nginx/ssl/prod/wildcard.key"
+        success "Wildcard certificate renewed - single file updated for all domains"
+    else
+        # Fallback: try individual certificates
+        for domain in "sso.${DOMAIN}" "mail.${DOMAIN}"; do
+            if [ -f "config/nginx/certbot/conf/live/$domain/fullchain.pem" ]; then
+                cp "config/nginx/certbot/conf/live/$domain/fullchain.pem" "config/nginx/ssl/prod/wildcard.crt"
+                cp "config/nginx/certbot/conf/live/$domain/privkey.pem" "config/nginx/ssl/prod/wildcard.key"
+                break  # Use first available certificate
+            fi
+        done
+    fi
     
     # Reload nginx
     docker compose -f "$COMPOSE_FILE" exec nginx nginx -s reload
@@ -1013,21 +1026,34 @@ switch_to_dev_mode() {
 switch_to_prod_mode() {
     info "Switching to production mode (HTTPS with Let's Encrypt certificates)..."
     
-    # Check if production SSL certificates exist
-    if [ ! -f "config/nginx/ssl/prod/sso.aeno.tech.crt" ] || [ ! -f "config/nginx/ssl/prod/mail.aeno.tech.crt" ]; then
-        warning "Production SSL certificates not found. Setting up..."
+    # Check if wildcard certificate exists
+    if [ ! -f "config/nginx/ssl/prod/wildcard.crt" ]; then
+        warning "Wildcard certificate not found. Setting up SSL..."
         setup_prod_ssl
         return
     fi
     
-    # Link production certificates
+    # Simple approach: All domains use the same wildcard certificate
     cd config/nginx/ssl
-    for domain in "sso.${DOMAIN}" "mail.${DOMAIN}" "default"; do
-        if [ -f "prod/${domain}.crt" ]; then
-            ln -sf "prod/${domain}.crt" "${domain}.crt"
-            ln -sf "prod/${domain}.key" "${domain}.key"
-        fi
-    done
+    
+    # Link wildcard certificate for all domains (root + subdomains)
+    ln -sf "prod/wildcard.crt" "${DOMAIN}.crt"
+    ln -sf "prod/wildcard.key" "${DOMAIN}.key"
+    ln -sf "prod/wildcard.crt" "sso.${DOMAIN}.crt"
+    ln -sf "prod/wildcard.key" "sso.${DOMAIN}.key"
+    ln -sf "prod/wildcard.crt" "mail.${DOMAIN}.crt"
+    ln -sf "prod/wildcard.key" "mail.${DOMAIN}.key"
+    ln -sf "prod/wildcard.crt" "default.crt"
+    ln -sf "prod/wildcard.key" "default.key"
+    
+    info "All domains using single wildcard certificate: wildcard.crt"
+    
+    # Link default certificate
+    if [ -f "prod/default.crt" ]; then
+        ln -sf "prod/default.crt" "default.crt"
+        ln -sf "prod/default.key" "default.key"
+    fi
+    
     cd ../../..
     
     # Restart nginx if running
