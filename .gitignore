@@ -1,0 +1,89 @@
+# =====================================
+# 🚀 Aeno.tech Stack - Git Ignore
+# =====================================
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Cloned repositories (source code)
+/keycloak/*
+/sendgrid-inbound/*
+
+# Backup files
+*.backup
+*.bak
+*.sql.backup
+*.tar.gz.backup
+backups/
+*.backup_*
+
+# Log files
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# SSL certificates
+/config/nginx/certbot
+*.crt
+*.key
+
+# Database data
+data/
+*.db
+*.sqlite
+*.sqlite3
+pgdata/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node.js (for SendGrid)
+node_modules/
+npm-debug.log
+package-lock.json
+
+# Java (for Keycloak)
+*.class
+*.jar
+*.war
+target/
+.m2/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Documentation temporary files
+DOCUMENTATION_SIMPLIFIED.md
+*.md.backup
+*.md.old
+
+# Docker override files (keep examples)
+docker-compose.override.yml
+!docker-compose.override.example.yml

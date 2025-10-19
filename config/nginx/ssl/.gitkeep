@@ -1,0 +1,8 @@
+# This file keeps the SSL directory in Git
+# SSL certificates will be generated/placed here
+# Structure:
+# ssl/
+# ├── dev/          # Self-signed certificates for development
+# ├── prod/         # Let's Encrypt certificates for production
+# ├── *.crt         # Current certificate (symlink)
+# └── *.key         # Current private key (symlink)
