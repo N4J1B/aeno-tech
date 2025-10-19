@@ -1,262 +1,231 @@
-# 🚀 Aeno.tech Stack# 🚀 Aeno.tech Stack
+# 🚀 Aeno.tech Stack
+Complete Docker deployment untuk **Keycloak** (sso.aeno.tech) + **SendGrid** (mail.aeno.tech) dengan Nginx reverse proxy dan PostgreSQL database.
 
+---
 
+# 📋 Table of Content
 
-Complete Docker deployment untuk **Keycloak** (sso.aeno.tech) + **SendGrid** (mail.aeno.tech) dengan Nginx reverse proxy dan PostgreSQL database.Complete Docker deployment untuk **Keycloak** (sso.aeno.tech) + **SendGrid** (mail.aeno.tech) dengan Nginx reverse proxy.
+1. [Quick Start](#-quick-start)
 
+2. [Deployment Methods](#-deployment-methods)
 
-
----## 🎯 Quick Start
-
-
-
-## 📋 Table of Contents### Option 1: Quick Deploy (Recommended untuk Production)
-
-```bash
-
-1. [Quick Start](#-quick-start)# 1. Initial setup dengan wizard
-
-2. [Deployment Methods](#-deployment-methods)./manage.sh setup
-
-3. [Commands Reference](#-commands-reference)# Pilih option 1: Quick Deploy
+3. [Commands Reference](#-commands-reference)
 
 4. [Configuration](#-configuration)
 
-5. [SSL Setup](#-ssl-setup)# 2. Edit konfigurasi  
+5. [SSL Setup](#-ssl-setup) 
 
-6. [DNS Setup](#-dns-setup)nano .env
+6. [DNS Setup](#-dns-setup)
 
 7. [Testing](#-testing)
 
-8. [Troubleshooting](#-troubleshooting)# 3. Start services
+8. [Troubleshooting](#-troubleshooting)
 
-9. [Advanced Topics](#-advanced-topics)./manage.sh start
+9. [Advanced Topics](#-advanced-topics)
+---
 
+# 🚀 Quick Start
+
+## Option 1: Production Deploy (Recommended - 5 minutes)
+
+```bash
+# 1. Setup dengan wizard
+./manage.sh setup
+
+# 2. Edit konfigurasi
+nano .env
+
+# 3. Start services
+./manage.sh start
+
+# 4. Setup production SSL
+./manage.sh ssl prod
+```
+
+## Option 2: Development with Customization
+
+```bash
+# 1. Clone repositories
+./manage.sh clone all
+
+# 2. (Optional) Customize
+cd keycloak/         # Edit themes, configs
+cd sendgrid-inbound/ # Edit server logic, UI
+
+# 3. Build and start
+./manage.sh build all
+./manage.sh dev-mode
+./manage.sh start
+```
+
+## Option 3: One-liner Demo
+
+```bash
+./manage.sh pull all && ./manage.sh start
 ```
 
 ---
 
-### Option 2: Custom Build (Untuk Kustomisasi)
-
-## 🚀 Quick Start```bash
-
-# 1. Clone repositories
-
-### Option 1: Production Deploy (Recommended - 5 minutes)./manage.sh clone all
-
-```bash
-
-# 1. Setup dengan wizard# 2. Lakukan kustomisasi (optional)
-
-./manage.sh setupcd keycloak/        # Edit Keycloak themes/configs
-
-# Pilih: 1) Quick Deploycd sendgrid-inbound/  # Edit SendGrid logic/UI
-
-
-
-# 2. Edit konfigurasi# 3. Build images
-
-nano .env./manage.sh build all
-
-
-
-# 3. Start services# 4. Start services
-
-./manage.sh start./manage.sh start
-
-```
-
-# 4. Setup production SSL
-
-./manage.sh ssl prod## 📦 Deployment Methods
-
-```
+## 📦 Deployment Methods
 
 Pilih metode deployment sesuai kebutuhan Anda:
 
-### Option 2: Development with Customization
-
-```bash| Method | Use Case | Commands |
-
-# 1. Clone repositories|--------|----------|----------|
-
-./manage.sh clone all| **Quick Deploy** | Production, Quick testing | `./manage.sh pull all` |
-
+| Method | Use Case | Commands |
+|--------|----------|----------|
+| **Quick Deploy** | Production, Quick testing | `./manage.sh pull all` |
 | **Custom Build** | Development, Customization | `./manage.sh clone all && ./manage.sh build all` |
 
-# 2. (Optional) Customize
+📖 **Detail lengkap**: [docs/DEPLOYMENT_METHODS.md](docs/DEPLOYMENT_METHODS.md)
 
-cd keycloak/         # Edit themes, configs📖 **Detail lengkap**: [docs/DEPLOYMENT_METHODS.md](docs/DEPLOYMENT_METHODS.md)
-
-cd sendgrid-inbound/ # Edit server logic, UI
-
-## 📖 Commands
-
-# 3. Build and start
-
-./manage.sh build all### Setup & Build
-
-./manage.sh dev-mode```bash
-
-./manage.sh start./manage.sh clone all         # Clone repositories untuk kustomisasi
-
-```./manage.sh pull all          # Pull images dari DockerHub (quick)
-
-./manage.sh build all         # Build images dari source
-
-### Option 3: One-liner Demo```
-
-```bash
-
-./manage.sh pull all && ./manage.sh start### Deployment
-
-``````bash
-
-./manage.sh start             # Start all services
-
----./manage.sh stop              # Stop all services
-
-./manage.sh restart           # Restart all services
-
-## 📦 Deployment Methods./manage.sh status            # Check status
-
-./manage.sh logs [service]    # View logs
-
-Choose the method that fits your needs:```
-
-
-
-| Method | Use Case | Time | Customizable | Commands |### Domain & SSL
-
-|--------|----------|------|--------------|----------|```bash
-
-| **Quick Deploy** | Production, Testing | 5 min | ❌ No | `./manage.sh pull all` |./manage.sh domain check      # Check DNS records
-
-| **Custom Build** | Development, Custom features | 15-30 min | ✅ Yes | `./manage.sh clone all && ./manage.sh build all` |./manage.sh domain test       # Test endpoints
-
-./manage.sh ssl dev           # Generate self-signed SSL (dev)
-
-### Quick Deploy (Production Ready)./manage.sh ssl prod          # Setup Let's Encrypt SSL (prod)
-
-- ✅ **Fastest** - Pre-built tested images from DockerHub./manage.sh ssl renew         # Renew SSL certificates
-
-- ✅ **Reliable** - No build dependencies or compilation errors```
-
+### Quick Deploy (Production Ready)
+- ✅ **Fastest** - Pre-built tested images from DockerHub
+- ✅ **Reliable** - No build dependencies or compilation errors
 - ✅ **Minimal resources** - Just pull and run
-
-- ❌ **No customization** - Uses default configurations### Development
+- ❌ **No customization** - Uses default configurations
 
 ```bash
+# Pull images and start
+./manage.sh pull all
+./manage.sh start
 
-```bash./manage.sh dev-mode          # Switch to development mode
-
-# Pull images and start./manage.sh prod-mode         # Switch to production mode
-
-./manage.sh pull all./manage.sh test-routing      # Test routing configuration
-
-./manage.sh start./manage.sh nginx test        # Test nginx config
-
-./manage.sh nginx reload      # Reload nginx
-
-# Images used:```
-
+# Images used:
 # - n4j1b/keycloak-custom:latest
+# - n4j1b/sendgrid-inbound:latest
+```
 
-# - n4j1b/sendgrid-inbound:latest### Help
-
-``````bash
-
-./manage.sh help              # Show all available commands
-
-### Custom Build (Full Control)```
-
+### Custom Build (Full Control)
 - ✅ **Customizable** - Full access to source code
-
-- ✅ **Development friendly** - Make changes and test locally## 🌐 URLs
-
+- ✅ **Development friendly** - Make changes and test locally
 - ✅ **Git workflow** - Version control for modifications
-
-- ❌ **Longer setup** - Need to clone and build- **Keycloak**: https://sso.aeno.tech
-
-- **SendGrid**: https://mail.aeno.tech
+- ❌ **Longer setup** - Need to clone and build
 
 ```bash
-
-# Clone, customize, and build## 📚 Documentation
-
+# Clone, customize, and build
 ./manage.sh clone all
 
-- 📖 [Complete Documentation](docs/README.md)
+# Customize Keycloak (optional)
+cd keycloak/
+nano themes/custom-theme/login.ftl
+git commit -am "Custom theme"
 
-# Customize Keycloak (optional)- 🚀 [Deployment Methods](docs/DEPLOYMENT_METHODS.md)
-
-cd keycloak/- 🔒 [SSL Configuration](docs/SSL_PRODUCTION_ISSUES.md)
-
-nano themes/custom-theme/login.ftl- 🌐 [Domain & Routing](docs/ROUTING_ISSUE_RESOLUTION.md)
-
-git commit -am "Custom theme"- 🏗️ [Nginx Structure](docs/NGINX_STRUCTURE.md)
-
-
-
-# Customize SendGrid (optional)  ## 🗂️ Structure
-
+# Customize SendGrid (optional)
 cd ../sendgrid-inbound/
+nano server-clean.js
+nano public/dashboard.html
+git commit -am "Custom UI"
 
-nano server-clean.js```
+# Build and deploy
+./manage.sh build all
+./manage.sh start
+```
 
-nano public/dashboard.htmlaeno-tech/
+---
 
-git commit -am "Custom UI"├── manage.sh              # 🎛️ Main management script (all-in-one)
+## 📖 Commands Reference
 
+### Setup & Build
+```bash
+./manage.sh clone all         # Clone repositories untuk kustomisasi
+./manage.sh pull all          # Pull images dari DockerHub (quick)
+./manage.sh build all         # Build images dari source
+
+```
+
+### Deployment
+```bash
+./manage.sh start             # Start all services
+./manage.sh stop              # Stop all services
+./manage.sh restart           # Restart all services
+./manage.sh status            # Check status
+./manage.sh logs [service]    # View logs
+```
+
+### Domain & SSL
+```bash
+./manage.sh domain check      # Check DNS records
+./manage.sh domain test       # Test endpoints
+./manage.sh ssl dev           # Generate self-signed SSL (dev)
+./manage.sh ssl prod          # Setup Let's Encrypt SSL (prod)
+./manage.sh ssl renew         # Renew SSL certificates
+```
+
+### Development
+```bash
+./manage.sh dev-mode          # Switch to development mode
+./manage.sh prod-mode         # Switch to production mode
+./manage.sh test-routing      # Test routing configuration
+./manage.sh nginx test        # Test nginx config
+./manage.sh nginx reload      # Reload nginx
+```
+
+### Help
+```bash
+./manage.sh help              # Show all available commands
+
+## 🌐 URLs
+
+- **Keycloak**: https://sso.aeno.tech
+- **SendGrid**: https://mail.aeno.tech
+
+## 📚 Documentation
+
+- 📖 [Complete Documentation](docs/README.md)
+- 🚀 [Deployment Methods](docs/DEPLOYMENT_METHODS.md)
+- 🔒 [SSL Configuration](docs/SSL_PRODUCTION_ISSUES.md)
+- 🌐 [Domain & Routing](docs/ROUTING_ISSUE_RESOLUTION.md)
+- 🏗️ [Nginx Structure](docs/NGINX_STRUCTURE.md)
+
+## 🗂️ Structure
+
+```
+aeno-tech/
+├── manage.sh              # 🎛️ Main management script (all-in-one)
 ├── docker-compose.yml     # 🐳 Docker configuration  
-
-# Build and deploy├── .env.example          # 📝 Environment template
-
-./manage.sh build all├── config/               # ⚙️ All configurations
-
-./manage.sh start│   ├── nginx/           # 🌐 Nginx configs & SSL
-
-```│   └── init-sendgrid-db.sql
-
+├── .env.example          # 📝 Environment template
+├── config/               # ⚙️ All configurations
+│   ├── nginx/           # 🌐 Nginx configs & SSL
+│   └── init-sendgrid-db.sql
 ├── docs/                # 📚 Documentation
-
----│   ├── DEPLOYMENT_METHODS.md
-
+│   ├── DEPLOYMENT_METHODS.md
 │   ├── SSL_PRODUCTION_ISSUES.md
-
-## 📖 Commands Reference│   └── ROUTING_ISSUE_RESOLUTION.md
-
+│   └── ROUTING_ISSUE_RESOLUTION.md
 ├── keycloak/            # 🔐 Keycloak source (clone)
+└── sendgrid-inbound/    # 📧 SendGrid source (clone)
+```
 
-### Setup & Build└── sendgrid-inbound/    # 📧 SendGrid source (clone)
+## ⚡ DNS Setup
 
-```bash```
+Add DNS A records pointing to your server IP:
 
-./manage.sh setup              # Interactive setup wizard
-
-./manage.sh clone all          # Clone repositories for customization## ⚡ DNS Setup
-
-./manage.sh pull all           # Pull pre-built images (quick)
-
-./manage.sh build all          # Build from sourceAdd DNS A records pointing to your server IP:
-
-``````
-
+```
 sso.aeno.tech  → YOUR_SERVER_IP
+mail.aeno.tech → YOUR_SERVER_IP
+```
 
-### Deploymentmail.aeno.tech → YOUR_SERVER_IP
+Verify DNS:
+```bash
+./manage.sh domain check
+```
 
-```bash```
+---
 
+## 📖 Commands Reference
+
+### Setup & Build
+```bash
+./manage.sh setup              # Interactive setup wizard
+./manage.sh clone all          # Clone repositories for customization
+./manage.sh pull all           # Pull pre-built images (quick)
+./manage.sh build all          # Build from source
+```
+
+### Deployment
+```bash
 ./manage.sh start              # Start all services
-
-./manage.sh stop               # Stop all services  Verify DNS:
-
-./manage.sh restart            # Restart all services```bash
-
-./manage.sh status             # Check container status./manage.sh domain check
-
-./manage.sh logs [service]     # View logs (all or specific)```
+./manage.sh stop               # Stop all services
+./manage.sh restart            # Restart all services
+./manage.sh status             # Check container status
+./manage.sh logs [service]     # View logs (all or specific)
 ```
 
 ### Testing & Utilities
