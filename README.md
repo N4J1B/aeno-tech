@@ -139,11 +139,6 @@ git commit -am "Custom UI"
 ```
 
 ---
-```bash
-./manage.sh domain check
-```
-
----
 
 ## 📖 Commands Reference
 
