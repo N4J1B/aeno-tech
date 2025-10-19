@@ -11,7 +11,7 @@ Complete Docker deployment untuk **Keycloak** (sso.aeno.tech) + **SendGrid** (ma
 
 3. [Commands Reference](#-commands-reference)
 
-4. [Configuration](#-configuration)
+4. [Configuration](#️-configurationation)
 
 5. [SSL Setup](#-ssl-setup) 
 
@@ -21,7 +21,7 @@ Complete Docker deployment untuk **Keycloak** (sso.aeno.tech) + **SendGrid** (ma
 
 8. [Troubleshooting](#-troubleshooting)
 
-9. [Advanced Topics](#-advanced-topics)
+9. [Advanced Topics](#️-advanced-topics)
 ---
 
 # 🚀 Quick Start
