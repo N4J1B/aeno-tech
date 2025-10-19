@@ -139,89 +139,6 @@ git commit -am "Custom UI"
 ```
 
 ---
-
-## 📖 Commands Reference
-
-### Setup & Build
-```bash
-./manage.sh clone all         # Clone repositories untuk kustomisasi
-./manage.sh pull all          # Pull images dari DockerHub (quick)
-./manage.sh build all         # Build images dari source
-
-```
-
-### Deployment
-```bash
-./manage.sh start             # Start all services
-./manage.sh stop              # Stop all services
-./manage.sh restart           # Restart all services
-./manage.sh status            # Check status
-./manage.sh logs [service]    # View logs
-```
-
-### Domain & SSL
-```bash
-./manage.sh domain check      # Check DNS records
-./manage.sh domain test       # Test endpoints
-./manage.sh ssl dev           # Generate self-signed SSL (dev)
-./manage.sh ssl prod          # Setup Let's Encrypt SSL (prod)
-./manage.sh ssl renew         # Renew SSL certificates
-```
-
-### Development
-```bash
-./manage.sh dev-mode          # Switch to development mode
-./manage.sh prod-mode         # Switch to production mode
-./manage.sh test-routing      # Test routing configuration
-./manage.sh nginx test        # Test nginx config
-./manage.sh nginx reload      # Reload nginx
-```
-
-### Help
-```bash
-./manage.sh help              # Show all available commands
-
-## 🌐 URLs
-
-- **Keycloak**: https://sso.aeno.tech
-- **SendGrid**: https://mail.aeno.tech
-
-## 📚 Documentation
-
-- 📖 [Complete Documentation](docs/README.md)
-- 🚀 [Deployment Methods](docs/DEPLOYMENT_METHODS.md)
-- 🔒 [SSL Configuration](docs/SSL_PRODUCTION_ISSUES.md)
-- 🌐 [Domain & Routing](docs/ROUTING_ISSUE_RESOLUTION.md)
-- 🏗️ [Nginx Structure](docs/NGINX_STRUCTURE.md)
-
-## 🗂️ Structure
-
-```
-aeno-tech/
-├── manage.sh              # 🎛️ Main management script (all-in-one)
-├── docker-compose.yml     # 🐳 Docker configuration  
-├── .env.example          # 📝 Environment template
-├── config/               # ⚙️ All configurations
-│   ├── nginx/           # 🌐 Nginx configs & SSL
-│   └── init-sendgrid-db.sql
-├── docs/                # 📚 Documentation
-│   ├── DEPLOYMENT_METHODS.md
-│   ├── SSL_PRODUCTION_ISSUES.md
-│   └── ROUTING_ISSUE_RESOLUTION.md
-├── keycloak/            # 🔐 Keycloak source (clone)
-└── sendgrid-inbound/    # 📧 SendGrid source (clone)
-```
-
-## ⚡ DNS Setup
-
-Add DNS A records pointing to your server IP:
-
-```
-sso.aeno.tech  → YOUR_SERVER_IP
-mail.aeno.tech → YOUR_SERVER_IP
-```
-
-Verify DNS:
 ```bash
 ./manage.sh domain check
 ```
@@ -665,7 +582,7 @@ cd sendgrid-inbound && git pull && cd ..
 
 ---
 
-## � Migration from aeno.tech
+## 🔄 Migration from aeno.tech
 
 If you have existing deployment with hardcoded `aeno.tech` domains:
 
@@ -700,7 +617,7 @@ sed -i 's/mail\.aeno\.tech/mail.yourdomain.com/g' docker-compose.yml
 
 ---
 
-## �📞 Getting Help
+## 📞 Getting Help
 
 ### Built-in Help
 ```bash
