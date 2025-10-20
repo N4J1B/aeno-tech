@@ -691,14 +691,7 @@ renew_ssl() {
         cp "config/nginx/certbot/conf/live/$DOMAIN/privkey.pem" "config/nginx/ssl/prod/wildcard.key"
         success "Wildcard certificate renewed - single file updated for all domains"
     else
-        # Fallback: try individual certificates
-        for domain in "sso.${DOMAIN}" "mail.${DOMAIN}"; do
-            if [ -f "config/nginx/certbot/conf/live/$domain/fullchain.pem" ]; then
-                cp "config/nginx/certbot/conf/live/$domain/fullchain.pem" "config/nginx/ssl/prod/wildcard.crt"
-                cp "config/nginx/certbot/conf/live/$domain/privkey.pem" "config/nginx/ssl/prod/wildcard.key"
-                break  # Use first available certificate
-            fi
-        done
+        error "Failed to renew ssl"
     fi
     
     # Reload nginx
