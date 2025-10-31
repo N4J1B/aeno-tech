@@ -76,7 +76,7 @@ show_help() {
     echo "  domain check        Check DNS records dan connectivity"
     echo "  domain test         Test semua endpoints dan performance"
     echo "  ssl dev             Generate self-signed SSL (development)"
-    echo "  ssl prod            Setup Let's Encrypt SSL (production)"
+    echo "  ssl prod            Setup Let's Encrypt SSL (production) - requires DIGITALOCEAN_ACCESS_TOKEN"
     echo "  ssl renew           Renew SSL certificates"
     echo ""
     echo "🔧 Maintenance Commands:"
@@ -613,6 +613,11 @@ setup_dev_ssl() {
             2>/dev/null
     done
     
+    # Fix certificate permissions for Keycloak container
+    chown -R 1000:1000 config/nginx/ssl/dev/
+    chmod 644 config/nginx/ssl/dev/*.key
+    chmod 644 config/nginx/ssl/dev/*.crt
+    
     # Create symlinks to current certificates location
     cd config/nginx/ssl
     for cert in dev/*.crt dev/*.key; do
@@ -622,42 +627,65 @@ setup_dev_ssl() {
     cd ../../..
     
     success "Development SSL certificates generated and linked"
+    success "Certificate permissions fixed for Keycloak container"
 }
 
 setup_prod_ssl() {
-    info "Setting up Let's Encrypt SSL certificates for production..."
+    info "Setting up Let's Encrypt SSL certificates for production using DigitalOcean DNS..."
+    
+    # Load environment variables first
+    if [ -f "$ENV_FILE" ]; then
+        source "$ENV_FILE"
+    else
+        error "Environment file $ENV_FILE not found"
+        exit 1
+    fi
     
     # Create certbot directories
     mkdir -p config/nginx/certbot/{www,conf}
     mkdir -p config/nginx/ssl/prod
     
-    # Switch to HTTP-only nginx temporarily
-    if docker ps -q -f name=nginx_proxy >/dev/null; then
-        docker compose -f "$COMPOSE_FILE" stop nginx
+    # Check for DigitalOcean API token
+    if [ -z "$DIGITALOCEAN_ACCESS_TOKEN" ]; then
+        error "DIGITALOCEAN_ACCESS_TOKEN environment variable is required"
+        info "Please add your DigitalOcean API token to .env file:"
+        echo "   DIGITALOCEAN_ACCESS_TOKEN=your_api_token_here"
+        echo ""
+        info "You can get your API token from: https://cloud.digitalocean.com/account/api/tokens"
+        exit 1
     fi
-    
-    # Start nginx dengan HTTP config untuk challenge
-    docker compose -f "$COMPOSE_FILE" up -d nginx
     
     local email="${LETSENCRYPT_EMAIL:-admin@${DOMAIN}}"
     local wildcard_domain="*.${DOMAIN}"
     
-    info "Getting wildcard certificate for $DOMAIN and $wildcard_domain..."
+    info "Getting wildcard certificate for $DOMAIN and $wildcard_domain using DNS-01 challenge..."
+    info "Using DigitalOcean DNS provider..."
     
-    # Request certificate for both root domain and wildcard subdomain
+    # Create temporary credentials file
+    local credentials_file="config/nginx/certbot/digitalocean_credentials.ini"
+    mkdir -p "$(dirname "$credentials_file")"
+    cat > "$credentials_file" << EOF
+dns_digitalocean_token = $DIGITALOCEAN_ACCESS_TOKEN
+EOF
+    chmod 600 "$credentials_file"
+    
+    # Request certificate using DigitalOcean DNS challenge
     docker run --rm --name certbot \
         -v "$(pwd)/config/nginx/certbot/conf:/etc/letsencrypt" \
-        -v "$(pwd)/config/nginx/certbot/www:/var/www/certbot" \
-        certbot/certbot \
+        -v "$(pwd)/$credentials_file:/tmp/credentials.ini:ro" \
+        certbot/dns-digitalocean \
         certonly \
-        --webroot \
-        --webroot-path=/var/www/certbot \
+        --dns-digitalocean \
+        --dns-digitalocean-credentials /tmp/credentials.ini \
         --email "$email" \
         --agree-tos \
         --no-eff-email \
         -d "$DOMAIN" \
         -d "$wildcard_domain" \
-        --non-interactive || warning "Failed to get wildcard certificate for $DOMAIN"
+        --non-interactive || { error "Failed to get wildcard certificate for $DOMAIN"; rm -f "$credentials_file"; exit 1; }
+    
+    # Clean up credentials file
+    rm -f "$credentials_file"
     
     # Copy certificates for each subdomain from the wildcard cert
     local subdomains=("sso" "mail")
@@ -666,30 +694,73 @@ setup_prod_ssl() {
         # Simple approach: Save as wildcard.crt - one file for all domains
         cp "config/nginx/certbot/conf/live/$DOMAIN/fullchain.pem" "config/nginx/ssl/prod/wildcard.crt"
         cp "config/nginx/certbot/conf/live/$DOMAIN/privkey.pem" "config/nginx/ssl/prod/wildcard.key"
+        
+        # Fix certificate permissions for Keycloak container
+        chown 1000:1000 "config/nginx/ssl/prod/wildcard.key" "config/nginx/ssl/prod/wildcard.crt"
+        chmod 644 "config/nginx/ssl/prod/wildcard.key"
+        chmod 644 "config/nginx/ssl/prod/wildcard.crt"
+        
         success "Wildcard certificate saved as wildcard.crt (covers $DOMAIN and *.${DOMAIN})"
     else
         error "Wildcard certificate request failed...."
+        exit 1
     fi
     
     # Link production certificates
     switch_to_prod_mode
     success "Production SSL wildcard certificate setup completed"
     info "✅ Certificate covers: $DOMAIN and *.${DOMAIN} (including sso.${DOMAIN}, mail.${DOMAIN})"
+    info "✅ Certificate permissions fixed for Keycloak container"
 }
 
 renew_ssl() {
-    info "Renewing SSL certificates..."
+    info "Renewing SSL certificates using DigitalOcean DNS..."
+    
+    # Load environment variables first
+    if [ -f "$ENV_FILE" ]; then
+        source "$ENV_FILE"
+    else
+        error "Environment file $ENV_FILE not found"
+        exit 1
+    fi
+    
+    # Check for DigitalOcean API token
+    if [ -z "$DIGITALOCEAN_ACCESS_TOKEN" ]; then
+        error "DIGITALOCEAN_ACCESS_TOKEN environment variable is required"
+        info "Please add your DigitalOcean API token to .env file"
+        exit 1
+    fi
+    
+    # Create temporary credentials file
+    local credentials_file="config/nginx/certbot/digitalocean_credentials.ini"
+    mkdir -p "$(dirname "$credentials_file")"
+    cat > "$credentials_file" << EOF
+dns_digitalocean_token = $DIGITALOCEAN_ACCESS_TOKEN
+EOF
+    chmod 600 "$credentials_file"
     
     docker run --rm --name certbot \
         -v "$(pwd)/config/nginx/certbot/conf:/etc/letsencrypt" \
-        -v "$(pwd)/config/nginx/certbot/www:/var/www/certbot" \
-        certbot/certbot renew --quiet
+        -v "$(pwd)/$credentials_file:/tmp/credentials.ini:ro" \
+        certbot/dns-digitalocean \
+        renew --quiet --dns-digitalocean \
+        --dns-digitalocean-credentials /tmp/credentials.ini
+    
+    # Clean up credentials file  
+    rm -f "$credentials_file"
     
     # Simple approach: Update single wildcard certificate file
     if [ -f "config/nginx/certbot/conf/live/$DOMAIN/fullchain.pem" ]; then
         cp "config/nginx/certbot/conf/live/$DOMAIN/fullchain.pem" "config/nginx/ssl/prod/wildcard.crt"
         cp "config/nginx/certbot/conf/live/$DOMAIN/privkey.pem" "config/nginx/ssl/prod/wildcard.key"
+        
+        # Fix certificate permissions for Keycloak container
+        chown 1000:1000 "config/nginx/ssl/prod/wildcard.key" "config/nginx/ssl/prod/wildcard.crt"
+        chmod 644 "config/nginx/ssl/prod/wildcard.key"
+        chmod 644 "config/nginx/ssl/prod/wildcard.crt"
+        
         success "Wildcard certificate renewed - single file updated for all domains"
+        success "Certificate permissions fixed for Keycloak container"
     else
         error "Failed to renew ssl"
     fi
